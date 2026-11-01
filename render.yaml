@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: maid-in-india-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm i && npm run generate && npm run build
+    startCommand: npx prisma migrate deploy --schema ../prisma/schema.prisma && npm start
+    envVars: [{ key: DATABASE_URL, sync: false },{ key: JWT_SECRET, generateValue: true },{ key: CLIENT_URL, sync: false }]

@@ -1,0 +1,8 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment: { POSTGRES_USER: maid, POSTGRES_PASSWORD: maid, POSTGRES_DB: maidinindia }
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes: { pgdata: {} }

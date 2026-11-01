@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  MAID
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum VerifStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ReqStatus {
+  PENDING
+  NEGOTIATING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum ContractStatus {
+  PENDING_SIGNATURE
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+enum AttStatus {
+  PENDING
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+  DISPUTED
+}
+
+enum PayStatus {
+  PENDING
+  PAID
+  FAILED
+  DISPUTED
+  REFUNDED
+}
+
+enum DisputeStatus {
+  OPEN
+  INVESTIGATING
+  MEDIATION
+  RESOLVED
+  APPEALED
+  CLOSED
+}
+
+model User {
+  id String @id @default(cuid())
+  role Role
+  name String
+  phone String @unique
+  email String? @unique
+  passwordHash String
+  status UserStatus @default(ACTIVE)
+  phoneVerified Boolean @default(false)
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  client ClientProfile?
+  maid MaidProfile?
+  addresses Address[]
+  notifications Notification[]
+  messages Message[]
+  tickets SupportTicket[]
+  subscription Subscription?
+  referralsMade Referral[] @relation("referrer")
+  referralsGot Referral[] @relation("referred")
+  auditLogs AuditLog[]
+  chats Chat[]
+  refreshTokens RefreshToken[]
+  avatarUrl String?
+}
+
+model ClientProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  city String?
+  requests EmploymentRequest[]
+  contracts EmploymentContract[]
+}
+
+model ServiceCategory {
+  id String @id @default(cuid())
+  name String @unique
+  active Boolean @default(true)
+  skills MaidSkill[]
+}
+
+model Language {
+  id String @id @default(cuid())
+  name String @unique
+  maids MaidProfile[]
+}
+
+model MaidProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  city String
+  lat Float
+  lng Float
+  experienceYears Int @default(0)
+  bio String?
+  expectedSalary Int
+  flexibilityPct Int @default(10)
+  fullTime Boolean @default(false)
+  maxTravelKm Int @default(10)
+  availableDays Int[]
+  rating Float @default(0)
+  completedJobs Int @default(0)
+  verification VerifStatus @default(UNVERIFIED)
+  verifiedAt DateTime?
+  skills MaidSkill[]
+  languages Language[]
+  documents VerificationDocument[]
+  requests EmploymentRequest[]
+  contracts EmploymentContract[]
+  @@index([city])
+  @@index([lat,lng])
+}
+
+model MaidSkill {
+  maidId String
+  categoryId String
+  maid MaidProfile @relation(fields:[maidId],references:[id],onDelete:Cascade)
+  category ServiceCategory @relation(fields:[categoryId],references:[id])
+  @@id([maidId,categoryId])
+}
+
+model VerificationDocument {
+  id String @id @default(cuid())
+  maidId String
+  maid MaidProfile @relation(fields:[maidId],references:[id],onDelete:Cascade)
+  type String
+  privateRef String
+  status VerifStatus @default(PENDING)
+  reviewNote String?
+  createdAt DateTime @default(now())
+}
+
+model Address {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  line String
+  city String
+  lat Float?
+  lng Float?
+}
+
+model EmploymentRequest {
+  id String @id @default(cuid())
+  clientId String
+  maidId String
+  client ClientProfile @relation(fields:[clientId],references:[id])
+  maid MaidProfile @relation(fields:[maidId],references:[id])
+  services String[]
+  startDate DateTime
+  durationMonths Int
+  days Int[]
+  startMin Int
+  endMin Int
+  offeredSalary Int
+  payFrequency String @default("MONTHLY")
+  notes String?
+  status ReqStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  negotiations SalaryNegotiation[]
+  contract EmploymentContract?
+  @@index([status,expiresAt])
+}
+
+model SalaryNegotiation {
+  id String @id @default(cuid())
+  requestId String
+  request EmploymentRequest @relation(fields:[requestId],references:[id],onDelete:Cascade)
+  fromRole Role
+  amount Int
+  accepted Boolean?
+  createdAt DateTime @default(now())
+}
+
+model EmploymentContract {
+  id String @id @default(cuid())
+  requestId String @unique
+  request EmploymentRequest @relation(fields:[requestId],references:[id])
+  clientId String
+  maidId String
+  client ClientProfile @relation(fields:[clientId],references:[id])
+  maid MaidProfile @relation(fields:[maidId],references:[id])
+  salary Int
+  payFrequency String
+  startDate DateTime
+  endDate DateTime
+  noticeDays Int @default(15)
+  paidLeaveDays Int @default(2)
+  terms Json
+  revision Int @default(1)
+  clientAcceptedAt DateTime?
+  maidAcceptedAt DateTime?
+  status ContractStatus @default(PENDING_SIGNATURE)
+  schedules EmploymentSchedule[]
+  attendance Attendance[]
+  leaves LeaveRequest[]
+  payments Payment[]
+  review Review?
+  clientRating ClientRating?
+}
+
+model EmploymentSchedule {
+  id String @id @default(cuid())
+  contractId String
+  contract EmploymentContract @relation(fields:[contractId],references:[id],onDelete:Cascade)
+  maidId String
+  days Int[]
+  startMin Int
+  endMin Int
+  lat Float
+  lng Float
+  @@index([maidId])
+}
+
+model Attendance {
+  id String @id @default(cuid())
+  contractId String
+  contract EmploymentContract @relation(fields:[contractId],references:[id])
+  date DateTime
+  checkIn DateTime?
+  checkOut DateTime?
+  geoConsent Boolean @default(false)
+  status AttStatus @default(PENDING)
+  verifiedAt DateTime?
+  @@unique([contractId,date])
+}
+
+model LeaveRequest {
+  id String @id @default(cuid())
+  contractId String
+  contract EmploymentContract @relation(fields:[contractId],references:[id])
+  date DateTime
+  paid Boolean @default(false)
+  approved Boolean?
+}
+
+model Payment {
+  id String @id @default(cuid())
+  contractId String
+  contract EmploymentContract @relation(fields:[contractId],references:[id])
+  periodStart DateTime
+  periodEnd DateTime
+  gross Int
+  deductions Json
+  net Int
+  commission Int @default(0)
+  status PayStatus @default(PENDING)
+  tx PaymentTransaction[]
+}
+
+model PaymentTransaction {
+  id String @id @default(cuid())
+  paymentId String
+  payment Payment @relation(fields:[paymentId],references:[id])
+  gatewayRef String?
+  status PayStatus
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id String @id @default(cuid())
+  contractId String
+  contract EmploymentContract @relation(fields:[contractId],references:[id])
+  rating Int
+  comment String?
+  flagged Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@unique([contractId])
+}
+
+model Chat {
+  id String @id @default(cuid())
+  requestId String?
+  members User[]
+  messages Message[]
+}
+
+model Message {
+  id String @id @default(cuid())
+  chatId String
+  chat Chat @relation(fields:[chatId],references:[id],onDelete:Cascade)
+  senderId String
+  sender User @relation(fields:[senderId],references:[id])
+  body String
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  title String
+  body String
+  read Boolean @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Dispute {
+  id String @id @default(cuid())
+  category String
+  contractId String?
+  raisedBy String
+  assignedTo String?
+  status DisputeStatus @default(OPEN)
+  notes String[]
+  createdAt DateTime @default(now())
+  evidence DisputeEvidence[]
+}
+
+model DisputeEvidence {
+  id String @id @default(cuid())
+  disputeId String
+  dispute Dispute @relation(fields:[disputeId],references:[id],onDelete:Cascade)
+  privateRef String
+}
+
+model SupportTicket {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id])
+  subject String
+  body String
+  status String @default("OPEN")
+}
+
+model Promotion {
+  id String @id @default(cuid())
+  title String
+  code String?
+  discountPct Int?
+  active Boolean @default(true)
+}
+
+model Subscription {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id])
+  plan String
+  expiresAt DateTime
+}
+
+model Referral {
+  id String @id @default(cuid())
+  code String
+  referrerId String
+  referredId String?
+  referrer User @relation("referrer",fields:[referrerId],references:[id])
+  referred User? @relation("referred",fields:[referredId],references:[id])
+  rewarded Boolean @default(false)
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String?
+  actor User? @relation(fields:[actorId],references:[id])
+  action String
+  entity String
+  entityId String
+  meta Json?
+  createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family    String
+  tokenHash String    @unique
+  revokedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([family])
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model City {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  state  String
+  active Boolean @default(true)
+}
+
+model ClientRating {
+  id         String             @id @default(cuid())
+  contractId String             @unique
+  contract   EmploymentContract @relation(fields: [contractId], references: [id])
+  rating     Int
+  comment    String?
+  createdAt  DateTime           @default(now())
+}

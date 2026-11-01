@@ -1,0 +1,30 @@
+// Paste at the END of prisma/schema.prisma, then ALSO add this one line inside `model User { ... }`:
+//     refreshTokens RefreshToken[]
+// Then run:  npm run migrate   (name it e.g. add_refresh_settings)
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family    String
+  tokenHash String    @unique
+  revokedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([family])
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model City {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  state  String
+  active Boolean @default(true)
+}
